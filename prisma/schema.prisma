@@ -1,0 +1,36 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+}
+
+model TemplateLaporan {
+  id              String   @id @default(cuid())
+  namaLaporan     String   
+  kodeLaporan     String   @unique 
+  deskripsi       String?  
+  definisiKolom   Json     
+  dataLaporan     DataLaporan[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model DataLaporan {
+  id                String   @id @default(cuid())
+  templateId        String
+  template          TemplateLaporan @relation(fields: [templateId], references: [id])
+  isiData           Json     
+  periode           String?  
+  kodeWilayah       String?  
+  diunggahOleh      String?  
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([templateId])
+  @@index([periode])
+  @@index([kodeWilayah])
+}
