@@ -92,7 +92,8 @@ export default function DashboardPage() {
             Jenis Laporan:
           </label>
           <select
-            className="w-full border border-gray-300 rounded-lg p-2.5 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+            // PERUBAHAN DI SINI: Menambahkan text-gray-900 dan font-medium
+            className="w-full border border-gray-300 rounded-lg p-2.5 bg-gray-50 text-gray-900 font-medium outline-none focus:ring-2 focus:ring-blue-500 transition-all"
             value={kodeLaporan}
             onChange={(e) => {
               setKodeLaporan(e.target.value);
@@ -112,7 +113,8 @@ export default function DashboardPage() {
             Tahun / Periode:
           </label>
           <select
-            className="w-full border border-gray-300 rounded-lg p-2.5 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+            // PERUBAHAN DI SINI: Menambahkan text-gray-900 dan font-medium
+            className="w-full border border-gray-300 rounded-lg p-2.5 bg-gray-50 text-gray-900 font-medium outline-none focus:ring-2 focus:ring-blue-500 transition-all"
             value={tahunPilih}
             onChange={(e) => setTahunPilih(e.target.value)}
           >
@@ -127,7 +129,6 @@ export default function DashboardPage() {
       </div>
 
       {/* Area Menampilkan Tabel */}
-      {/* min-h-[500px] memastikan kotak ini tidak pernah menciut lebih kecil dari 500px */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex-grow flex flex-col min-h-[500px]">
         {isLoading ? (
           <div className="flex-grow flex items-center justify-center text-gray-500">
@@ -171,8 +172,7 @@ export default function DashboardPage() {
                         key={kolom}
                         className="px-6 py-4 font-semibold whitespace-nowrap"
                       >
-                        {kolom.replace(/_/g, " ")}{" "}
-                        {/* Opsional: Membuat header pakai underscore jadi lebih rapi */}
+                        {kolom.replace(/_/g, " ")}
                       </th>
                     ))}
                     <th className="px-6 py-4 font-semibold whitespace-nowrap">
