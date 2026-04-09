@@ -6,6 +6,8 @@ datasource db {
   provider  = "postgresql"
 }
 
+// pnpm exec dotenv -e .env -- prisma studio membaca prisma studio
+
 model TemplateLaporan {
   id              String   @id @default(cuid())
   namaLaporan     String   

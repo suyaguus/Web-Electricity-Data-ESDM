@@ -2,14 +2,28 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+// 🔥 PERUBAHAN: Menambahkan TableFooter
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableFooter,
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 
-type TemplateList = {
-  kodeLaporan: string;
-  namaLaporan: string;
-};
-
-// ESLint Clean: Menggunakan 'unknown' alih-alih 'any'
+type TemplateList = { kodeLaporan: string; namaLaporan: string };
 type DataRow = Record<string, unknown>;
+type KolomDef = { key: string; label: string; tipe: string; wajib: boolean };
 
 export default function DashboardPage() {
   const [daftarTemplate, setDaftarTemplate] = useState<TemplateList[]>([]);
@@ -17,6 +31,7 @@ export default function DashboardPage() {
   const [tahunPilih, setTahunPilih] = useState("Semua");
   const [opsiTahun, setOpsiTahun] = useState<string[]>([]);
   const [dataLaporan, setDataLaporan] = useState<DataRow[]>([]);
+  const [urutanKolom, setUrutanKolom] = useState<KolomDef[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -26,9 +41,6 @@ export default function DashboardPage() {
         if (res.ok) {
           const data = await res.json();
           setDaftarTemplate(data);
-          if (data.length > 0) {
-            setKodeLaporan(data[0].kodeLaporan);
-          }
         }
       } catch (error) {
         console.error("Gagal memuat template:", error);
@@ -50,6 +62,9 @@ export default function DashboardPage() {
           const result = await res.json();
           setDataLaporan(result.data || []);
 
+          if (result.definisiKolom) {
+            setUrutanKolom(result.definisiKolom);
+          }
           if (tahunPilih === "Semua") {
             setOpsiTahun(result.listTahun || []);
           }
@@ -62,143 +77,179 @@ export default function DashboardPage() {
         setIsLoading(false);
       }
     };
-
     fetchData();
   }, [kodeLaporan, tahunPilih]);
 
-  const kolomDinamis =
-    dataLaporan.length > 0
-      ? Object.keys(dataLaporan[0]).filter(
-          (key) => key !== "idDb" && key !== "tanggalUpload",
-        )
-      : [];
+  const formatDataLayar = (nilai: unknown, namaKolom: string) => {
+    if (nilai === null || nilai === undefined || nilai === "") return "-";
+    const teksKolom = namaKolom.toLowerCase();
+    if (
+      teksKolom.includes("bulan") ||
+      teksKolom.includes("jenis") ||
+      teksKolom.includes("tahun") ||
+      teksKolom.includes("nama") ||
+      teksKolom.includes("npm")
+    ) {
+      return String(nilai);
+    }
+    const num = Number(nilai);
+    if (!isNaN(num)) {
+      return new Intl.NumberFormat("id-ID", {
+        maximumFractionDigits: 5,
+      }).format(num);
+    }
+    return String(nilai);
+  };
+
+  // 🔥 FUNGSI BARU: Menghitung total tiap kolom secara otomatis
+  // 🔥 FUNGSI BARU: Menghitung total tiap kolom secara otomatis
+  const hitungTotalKolom = (kolom: KolomDef) => {
+    // 1. Jika bukan angka, jangan dijumlahkan
+    if (kolom.tipe !== "number") return "-";
+
+    // 2. HAPUS: Baris `if (kolom.label.includes("%")) return "-";` telah dibuang agar % tetap dijumlahkan.
+
+    // 3. Kalkulasi total matematika
+    const total = dataLaporan.reduce((acc, row) => {
+      const num = Number(row[kolom.key]);
+      return !isNaN(num) ? acc + num : acc;
+    }, 0);
+
+    // 4. Format hasilnya dengan titik dan koma yang rapi
+    return new Intl.NumberFormat("id-ID", { maximumFractionDigits: 5 }).format(
+      total,
+    );
+  };
 
   return (
-    // Menggunakan w-full dan pembatasan lebar 95% agar lebih lega di layar komputer
-    <div className="p-4 md:p-8 w-full xl:max-w-[95%] mx-auto min-h-screen bg-gray-50 flex flex-col">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">
+    <div className="p-4 md:p-8 w-full xl:max-w-[95%] mx-auto min-h-screen flex flex-col gap-6 bg-gray-50/50">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight mb-1">
           📊 Dashboard Laporan
         </h1>
-        <p className="text-gray-500">
+        <p className="text-muted-foreground">
           Lihat dan pantau semua data yang telah masuk ke sistem.
         </p>
       </div>
 
-      {/* Kontrol Filter - Menjadi kolom di HP, baris di PC */}
-      <div className="bg-white p-5 md:p-6 rounded-xl shadow-sm border border-gray-200 mb-6 flex flex-col sm:flex-row gap-4">
-        <div className="flex-1">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Jenis Laporan:
-          </label>
-          <select
-            // PERUBAHAN DI SINI: Menambahkan text-gray-900 dan font-medium
-            className="w-full border border-gray-300 rounded-lg p-2.5 bg-gray-50 text-gray-900 font-medium outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+      <div className="bg-card text-card-foreground p-5 rounded-xl shadow-sm border flex flex-col sm:flex-row gap-4">
+        <div className="flex-1 space-y-2">
+          <label className="text-sm font-medium">Jenis Laporan:</label>
+          <Select
             value={kodeLaporan}
-            onChange={(e) => {
-              setKodeLaporan(e.target.value);
+            onValueChange={(val) => {
+              setKodeLaporan(val);
               setTahunPilih("Semua");
             }}
           >
-            {daftarTemplate.map((tpl) => (
-              <option key={tpl.kodeLaporan} value={tpl.kodeLaporan}>
-                {tpl.namaLaporan}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="font-medium text-gray-900 h-11">
+              <SelectValue placeholder="-- Pilih Jenis Laporan --" />
+            </SelectTrigger>
+            <SelectContent>
+              {daftarTemplate.map((tpl) => (
+                <SelectItem key={tpl.kodeLaporan} value={tpl.kodeLaporan}>
+                  {tpl.namaLaporan}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
-        <div className="w-full sm:w-56">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Tahun / Periode:
-          </label>
-          <select
-            // PERUBAHAN DI SINI: Menambahkan text-gray-900 dan font-medium
-            className="w-full border border-gray-300 rounded-lg p-2.5 bg-gray-50 text-gray-900 font-medium outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+        <div className="w-full sm:w-56 space-y-2">
+          <label className="text-sm font-medium">Tahun / Periode:</label>
+          <Select
             value={tahunPilih}
-            onChange={(e) => setTahunPilih(e.target.value)}
+            onValueChange={setTahunPilih}
+            disabled={!kodeLaporan}
           >
-            <option value="Semua">Semua Tahun</option>
-            {opsiTahun.map((tahun) => (
-              <option key={tahun} value={tahun}>
-                {tahun}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="font-medium text-gray-900 h-11">
+              <SelectValue placeholder="Pilih Tahun" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Semua">Semua Tahun</SelectItem>
+              {opsiTahun.map((tahun) => (
+                <SelectItem key={tahun} value={tahun}>
+                  {tahun}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
-      {/* Area Menampilkan Tabel */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex-grow flex flex-col min-h-[500px]">
-        {isLoading ? (
-          <div className="flex-grow flex items-center justify-center text-gray-500">
-            <div className="flex flex-col items-center gap-3">
-              <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-              <span className="animate-pulse font-medium">Memuat data...</span>
-            </div>
+      <div className="bg-card text-card-foreground rounded-xl shadow-sm border flex-grow flex flex-col min-h-[500px] overflow-hidden">
+        {!kodeLaporan ? (
+          <div className="flex-grow flex flex-col items-center justify-center text-muted-foreground">
+            <div className="text-6xl mb-4 opacity-40">📊</div>
+            <p className="text-lg font-medium text-gray-500">
+              Silakan pilih laporan di atas
+            </p>
+          </div>
+        ) : isLoading ? (
+          <div className="flex-grow flex flex-col items-center justify-center text-muted-foreground gap-3">
+            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+            <span className="animate-pulse font-medium">Memuat data...</span>
           </div>
         ) : dataLaporan.length === 0 ? (
-          <div className="flex-grow flex flex-col items-center justify-center text-gray-400">
-            <div className="text-6xl mb-4 opacity-50">📂</div>
+          <div className="flex-grow flex flex-col items-center justify-center text-muted-foreground">
+            <div className="text-6xl mb-4 opacity-40">📂</div>
             <p className="text-lg font-medium text-gray-500">
               Belum ada data untuk laporan ini.
-            </p>
-            <p className="text-sm mt-1">
-              Silakan upload file Excel terlebih dahulu.
             </p>
           </div>
         ) : (
           <div className="flex flex-col h-full">
-            <div className="p-4 bg-gray-800 text-white flex flex-col sm:flex-row justify-between items-center gap-3">
-              <h2 className="font-semibold text-lg">
+            <div className="p-4 border-b flex flex-col sm:flex-row justify-between items-center gap-3 bg-muted/30">
+              <h2 className="font-semibold text-lg text-gray-700">
                 Total Data:{" "}
-                <span className="text-blue-300">{dataLaporan.length}</span>{" "}
+                <span className="text-primary font-bold">
+                  {dataLaporan.length}
+                </span>{" "}
                 baris
               </h2>
-              <button className="bg-white text-gray-800 px-4 py-2 rounded text-sm font-semibold hover:bg-gray-100 transition-colors shadow-sm active:scale-95">
+              <Button variant="outline" size="sm" className="font-medium">
                 ⬇ Export ke Excel
-              </button>
+              </Button>
             </div>
 
             <div className="overflow-x-auto flex-grow">
-              <table className="w-full text-left text-sm text-gray-600">
-                <thead className="bg-gray-50 text-gray-700 uppercase text-xs border-b border-gray-200 sticky top-0 shadow-sm">
-                  <tr>
-                    <th className="px-6 py-4 font-semibold whitespace-nowrap">
+              <Table>
+                <TableHeader className="bg-muted/50 sticky top-0 shadow-sm z-10">
+                  <TableRow>
+                    <TableHead className="whitespace-nowrap w-[50px] font-semibold text-gray-700">
                       No
-                    </th>
-                    {kolomDinamis.map((kolom) => (
-                      <th
-                        key={kolom}
-                        className="px-6 py-4 font-semibold whitespace-nowrap"
+                    </TableHead>
+                    {urutanKolom.map((kolom) => (
+                      <TableHead
+                        key={kolom.key}
+                        className="whitespace-nowrap font-semibold text-gray-700"
                       >
-                        {kolom.replace(/_/g, " ")}
-                      </th>
+                        {kolom.label}
+                      </TableHead>
                     ))}
-                    <th className="px-6 py-4 font-semibold whitespace-nowrap">
+                    <TableHead className="whitespace-nowrap text-right font-semibold text-gray-700 pr-6">
                       Tanggal Upload
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {dataLaporan.map((row, index) => (
-                    <tr
+                    <TableRow
                       key={row.idDb as string}
-                      className="hover:bg-blue-50/50 transition-colors"
+                      className="hover:bg-blue-50/40 transition-colors"
                     >
-                      <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">
+                      <td className="px-4 py-3 font-medium text-gray-600 border-b whitespace-nowrap text-center">
                         {index + 1}
                       </td>
-
-                      {kolomDinamis.map((kolom) => (
-                        <td key={kolom} className="px-6 py-4 whitespace-nowrap">
-                          {row[kolom] !== null && row[kolom] !== undefined
-                            ? String(row[kolom])
-                            : "-"}
+                      {urutanKolom.map((kolom) => (
+                        <td
+                          key={kolom.key}
+                          className="px-4 py-3 border-b whitespace-nowrap text-gray-800"
+                        >
+                          {formatDataLayar(row[kolom.key], kolom.key)}
                         </td>
                       ))}
-
-                      <td className="px-6 py-4 text-xs text-gray-400 whitespace-nowrap">
+                      <td className="px-4 py-3 text-gray-400 text-xs text-right border-b whitespace-nowrap pr-6">
                         {new Date(
                           row.tanggalUpload as string,
                         ).toLocaleDateString("id-ID", {
@@ -209,10 +260,33 @@ export default function DashboardPage() {
                           minute: "2-digit",
                         })}
                       </td>
-                    </tr>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+
+                {/* 🔥 FITUR BARU: Tabel Footer Dinamis */}
+                <TableFooter className="bg-blue-50/80 text-gray-900 border-t-2 border-blue-200">
+                  <TableRow>
+                    <TableCell className="text-center font-bold">-</TableCell>
+
+                    {urutanKolom.map((kolom, index) => (
+                      <TableCell
+                        key={kolom.key}
+                        className="whitespace-nowrap font-bold"
+                      >
+                        {index === 0
+                          ? "TOTAL KESELURUHAN"
+                          : hitungTotalKolom(kolom)}
+                      </TableCell>
+                    ))}
+
+                    {/* Komentar dipindah ke DALAM tag agar tidak error! */}
+                    <TableCell className="text-center">
+                      {/* Kosong untuk kolom Tanggal */}-
+                    </TableCell>
+                  </TableRow>
+                </TableFooter>
+              </Table>
             </div>
           </div>
         )}

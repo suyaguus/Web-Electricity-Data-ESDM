@@ -2,11 +2,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
+type KondisiQuery = {
+  template: { kodeLaporan: string };
+  periode?: string;
+};
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const kodeLaporan = searchParams.get("kode");
-    const tahunFilter = searchParams.get("tahun"); // Parameter baru
+    const tahunFilter = searchParams.get("tahun");
 
     if (!kodeLaporan) {
       return NextResponse.json(
@@ -15,22 +20,21 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Siapkan kondisi query (Where Clause)
-    type KondisiQuery = {
-      template: { kodeLaporan: string };
-      periode?: string; // Tanda "?" berarti properti ini opsional (boleh ada, boleh tidak)
-    };
+    // 1. Ambil Definisi Kolom ASLI dari template (untuk mempertahankan urutan)
+    const templateInfo = await prisma.templateLaporan.findUnique({
+      where: { kodeLaporan: kodeLaporan },
+      select: { definisiKolom: true },
+    });
 
     const kondisi: KondisiQuery = {
       template: { kodeLaporan: kodeLaporan },
     };
 
-    // Jika admin memilih tahun di frontend, tambahkan ke kondisi query
     if (tahunFilter && tahunFilter !== "Semua") {
       kondisi.periode = tahunFilter;
     }
 
-    // Panggil data dari database
+    // 2. Ambil isi data
     const dataLaporan = await prisma.dataLaporan.findMany({
       where: kondisi,
       orderBy: { createdAt: "desc" },
@@ -42,7 +46,6 @@ export async function GET(request: NextRequest) {
       ...(item.isiData as object),
     }));
 
-    // Bonus: Ambil daftar tahun unik yang tersedia untuk laporan ini agar dropdown UI dinamis
     const tahunTersedia = await prisma.dataLaporan.findMany({
       where: { template: { kodeLaporan: kodeLaporan } },
       select: { periode: true },
@@ -52,12 +55,14 @@ export async function GET(request: NextRequest) {
     const listTahun = tahunTersedia
       .map((t) => t.periode)
       .filter(Boolean)
-      .sort((a, b) => Number(b) - Number(a)); // Urutkan dari tahun terbaru
+      .sort((a, b) => Number(b) - Number(a));
 
     return NextResponse.json(
       {
         data: dataBersih,
         listTahun: listTahun,
+        // 🔥 Kirimkan urutan kolom aslinya ke Frontend!
+        definisiKolom: templateInfo?.definisiKolom || [],
       },
       { status: 200 },
     );

@@ -1,38 +1,47 @@
+// src/app/api/templates/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { namaLaporan, kodeLaporan, deskripsi, definisiKolom } = body;
+    // 1. Frontend hanya mengirimkan 3 data ini sekarang (tanpa kodeLaporan)
+    const { namaLaporan, deskripsi, definisiKolom } = body;
 
-    // Validasi input dasar
-    if (!namaLaporan || !kodeLaporan || !definisiKolom) {
+    // 2. Validasi: Kita TIDAK LAGI menuntut kodeLaporan di sini
+    if (!namaLaporan || !definisiKolom) {
       return NextResponse.json(
-        { error: "Data template tidak lengkap" },
+        {
+          error: "Data template tidak lengkap. Pastikan Nama dan Kolom terisi.",
+        },
         { status: 400 },
       );
     }
 
-    // Cek apakah kode sudah dipakai
+    // 3. GENERASI KODE OTOMATIS (SLUG)
+    // Mengubah "nama npm" menjadi "NAMA_NPM"
+    let kodeOtomatis = namaLaporan
+      .toUpperCase()
+      .trim()
+      .replace(/[^A-Z0-9]/g, "_"); // Ganti spasi & simbol menjadi underscore
+
+    // 4. Cek apakah kode tersebut sudah dipakai laporan lain di database
     const existing = await prisma.templateLaporan.findUnique({
-      where: { kodeLaporan },
+      where: { kodeLaporan: kodeOtomatis },
     });
 
+    // Jika sudah ada yang pakai, tambahkan 4 angka acak di belakangnya agar unik
     if (existing) {
-      return NextResponse.json(
-        { error: "Kode laporan sudah digunakan!" },
-        { status: 400 },
-      );
+      kodeOtomatis = `${kodeOtomatis}_${Date.now().toString().slice(-4)}`;
     }
 
-    // Simpan template baru ke Database
+    // 5. Simpan ke database
     const newTemplate = await prisma.templateLaporan.create({
       data: {
         namaLaporan,
-        kodeLaporan,
-        deskripsi,
-        definisiKolom, // Disimpan otomatis sebagai JSONB
+        kodeLaporan: kodeOtomatis, // Masukkan kode otomatis ke database
+        deskripsi: deskripsi || "",
+        definisiKolom,
       },
     });
 
@@ -46,13 +55,11 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Error create template:", error);
     return NextResponse.json(
-      { error: "Gagal menyimpan template" },
+      { error: "Gagal menyimpan template ke database." },
       { status: 500 },
     );
   }
 }
-
-// Tambahkan di bagian paling bawah src/app/api/templates/route.ts
 
 export async function GET() {
   try {

@@ -40,9 +40,23 @@ export async function POST(request: NextRequest) {
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
 
-    // --- (Kode di atasnya tetap sama, mulai dari sini ke bawah diubah) ---
-    const rawData =
-      xlsx.utils.sheet_to_json<Record<string, unknown>>(worksheet);
+    // 🔥 PERBAIKAN: Beri tahu TypeScript bentuk asli dari data Excel ini menggunakan "as"
+    const rawDataKotor = xlsx.utils.sheet_to_json(worksheet) as Record<
+      string,
+      unknown
+    >[];
+
+    // --- (Kode di bawahnya sekarang otomatis paham dan tidak akan error) ---
+    // Hapus ': Record<string, unknown>' di dalam filter karena TypeScript sudah otomatis tahu dari atasnya
+    const rawData = rawDataKotor.filter((row) => {
+      const isTotalRow = Object.values(row).some((val) => {
+        // Cek apakah ada sel yang isinya "total" (baik huruf besar/kecil)
+        return String(val).toLowerCase().trim() === "total";
+      });
+
+      // Jika baris tersebut BUKAN total, kembalikan true (simpan datanya)
+      return !isTotalRow;
+    });
 
     if (rawData.length === 0) {
       return NextResponse.json(
@@ -101,6 +115,7 @@ export async function POST(request: NextRequest) {
           // Ambil nilai menggunakan header aslinya (jika kolomnya ada)
           const value = headerAsli ? row[headerAsli] : undefined;
 
+          // ... kode di atasnya tetap ...
           if (
             kolom.wajib &&
             (value === undefined || value === null || value === "")
@@ -110,13 +125,27 @@ export async function POST(request: NextRequest) {
           }
 
           if (value !== undefined && value !== null && value !== "") {
-            if (kolom.tipe === "number" && isNaN(Number(value))) {
-              hasError = true;
-              errors[kolom.key] = `${kolom.label} harus berupa angka!`;
-              cleanData[kolom.key] = String(value);
-            } else if (kolom.tipe === "number") {
-              cleanData[kolom.key] = Number(value);
+            if (kolom.tipe === "number") {
+              // 🔥 TRIK BARU: Bersihkan string dari simbol aneh sebelum dicek
+              // 1. Ubah ke string
+              // 2. Hapus semua spasi
+              // 3. Hapus simbol %
+              // 4. Ubah koma (,) khas Indonesia menjadi titik (.) standar komputer
+              const teksBersih = String(value)
+                .trim()
+                .replace(/%/g, "")
+                .replace(/,/g, ".");
+              const angkaHasil = Number(teksBersih);
+
+              if (isNaN(angkaHasil)) {
+                hasError = true;
+                errors[kolom.key] = `${kolom.label} harus berupa angka!`;
+                cleanData[kolom.key] = String(value); // Biarkan error agar admin lihat di layar
+              } else {
+                cleanData[kolom.key] = angkaHasil; // Simpan angka bersihnya
+              }
             } else {
+              // Jika tipe datanya 'string', biarkan apa adanya
               cleanData[kolom.key] = String(value);
             }
           }
